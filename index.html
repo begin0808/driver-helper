@@ -3,28 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>駕駛小幫手 (Driver Helper)</title>
+    <title>駕駛小幫手 (全台真實數據版)</title>
     
-    <!-- 1. 引入 Tailwind CSS (快速排版) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 2. 引入 Leaflet CSS (地圖樣式) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
      crossorigin=""/>
-    
-    <!-- 3. 引入 Lucide Icons (圖示) -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        /* 確保地圖滿版且無捲軸 */
         body, html { height: 100%; margin: 0; overflow: hidden; }
         #map { height: 100%; width: 100%; z-index: 0; }
-        
-        /* 自定義標記動畫 */
-        .pulse-marker {
-            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-        }
+        .pulse-marker { animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
         @keyframes pulse-ring {
             0% { transform: scale(0.33); opacity: 1; }
             80%, 100% { transform: scale(2); opacity: 0; }
@@ -33,94 +23,70 @@
 </head>
 <body class="bg-gray-100 font-sans flex flex-col relative">
 
-    <!-- 頂部導覽列 -->
     <header class="bg-slate-800 text-white p-4 shadow-md z-20 flex justify-between items-center flex-none">
         <div class="flex items-center gap-2">
             <i data-lucide="navigation" class="w-6 h-6 text-blue-400"></i>
-            <h1 class="text-lg font-bold">駕駛小幫手 (全台版)</h1>
+            <h1 class="text-lg font-bold">駕駛小幫手 (全台真實版)</h1>
         </div>
         <div id="gps-status" class="text-xs bg-slate-700 px-2 py-1 rounded text-gray-300">
             等待 GPS...
         </div>
     </header>
 
-    <!-- 測速警示橫幅 (預設隱藏) -->
     <div id="alert-banner" class="hidden bg-red-600 text-white px-4 py-3 animate-pulse flex items-center justify-center gap-2 z-30 font-bold text-lg shadow-lg absolute top-[60px] left-0 right-0">
         <i data-lucide="alert-triangle" class="w-8 h-8"></i>
         <span id="alert-text"></span>
     </div>
     
-    <!-- 錯誤/狀態提示 (Toast) -->
-    <div id="toast-message" class="hidden absolute top-[120px] left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white px-4 py-2 rounded shadow-lg z-50 text-sm transition-opacity duration-300 pointer-events-none">
+    <div id="toast-message" class="hidden absolute top-[120px] left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white px-4 py-2 rounded shadow-lg z-50 text-sm transition-opacity duration-300 pointer-events-none text-center min-w-[200px]">
         狀態訊息
     </div>
 
-    <!-- 地圖區域 -->
     <div id="map" class="flex-1"></div>
 
-    <!-- 載入中提示 -->
     <div id="loading-indicator" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/70 text-white px-4 py-2 rounded-lg z-50 flex items-center gap-2">
         <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-        <span>搜尋附近 1 公里車位...</span>
+        <span>資料更新中...</span>
     </div>
 
-    <!-- 底部浮動操作區 -->
     <div class="absolute bottom-8 left-0 right-0 px-4 z-20 flex justify-center pointer-events-none">
-        <!-- 開始按鈕 (初始顯示) -->
         <button id="btn-start" class="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-full shadow-xl font-bold text-lg flex items-center gap-2 transition-transform active:scale-95">
             <i data-lucide="locate-fixed"></i> 開始導航模式
         </button>
 
-        <!-- 狀態顯示 (初始隱藏) -->
         <div id="status-panel" class="hidden pointer-events-auto bg-white/95 backdrop-blur px-6 py-3 rounded-full shadow-lg border border-gray-200 text-gray-700 font-medium flex items-center">
-            <span>正在監控周邊...</span>
+            <span>正在監控全台路況...</span>
             <button id="btn-stop" class="ml-3 text-red-500 font-bold text-sm underline">停止</button>
         </div>
     </div>
 
-    <!-- 開發測試按鈕 -->
-    <div class="absolute top-20 right-4 z-20 bg-white/80 p-2 rounded text-xs shadow">
-        <p class="font-bold text-gray-500 mb-1">開發測試</p>
-        <button onclick="simulateMove()" class="block w-full text-left p-1 hover:bg-gray-200 rounded text-red-600 font-bold">
-            ! 順移到照相機旁
-        </button>
-        <button onclick="refreshCurrentLocation()" class="block w-full text-left p-1 mt-1 hover:bg-gray-200 rounded text-blue-600 font-bold">
-            ↻ 重新搜尋此處
+    <div class="absolute top-20 right-4 z-20 bg-white/80 p-2 rounded text-xs shadow max-w-[150px]">
+        <p class="font-bold text-gray-500 mb-1">功能選單</p>
+        <div id="debug-info" class="text-[10px] text-gray-400 mb-1 break-words">尚未定位</div>
+        <button onclick="refreshAllData()" class="block w-full text-left p-1 mt-1 hover:bg-gray-200 rounded text-blue-600 font-bold">
+            ↻ 強制更新周邊資料
         </button>
     </div>
 
-    <!-- 4. 引入 Leaflet JS (放在 body 結尾確保載入順序) -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-     crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <script>
-        // --- 1. 初始化資料與變數 ---
+        // --- 初始化變數 ---
         let map;
-        let userMarker;
-        let accuracyCircle;
-        let parkingLayer; 
+        let userMarker, accuracyCircle;
+        let parkingLayer, cameraLayer; 
         let watchId = null;
         let isTracking = false;
         let hasFetchedInitialLocation = false;
-        let currentLat = 22.624; // 預設緯度
-        let currentLng = 120.300; // 預設經度
+        let currentLat = 22.997; // 預設台南
+        let currentLng = 120.212;
+        let nearbyCamerasList = []; // 儲存下載下來的相機資料，供即時比對
 
-        // ** 您的 GAS API 網址 **
+        // ▼▼▼ 請務必填入您剛剛部署的新版 GAS 網址 ▼▼▼
         const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyHzKgk3xYAoQMLOKmw859IixhNGFTw0g9jlnGmpGifimQbcRJC5kWt0uXnBZFGXG4T7w/exec";
-
-        // 備用模擬資料
-        const FALLBACK_PARKINGS = [
-            { id: 1, CarParkName: "範例停車場(模擬)", ParkingPosition: { PositionLat: 22.624, PositionLon: 120.300 }, TotalSpaces: 200, AvailableSpaces: 45 },
-        ];
-
-        // 模擬測速照相
-        const MOCK_CAMERAS = [
-            { id: 101, limit: 50, lat: 22.625, lng: 120.298, address: "中正路與中華路口" },
-        ];
-
-        // --- 2. 輔助函式：建立 SVG Icon ---
-        const createIcon = (color) => {
+        
+        // 圖示設定
+        const createIcon = (color, size=35) => {
             const svg = `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -128,271 +94,218 @@
             </svg>`;
             return L.icon({
                 iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
-                iconSize: [35, 35],
-                iconAnchor: [17, 35],
-                popupAnchor: [1, -34],
+                iconSize: [size, size],
+                iconAnchor: [size/2, size],
+                popupAnchor: [1, -size],
             });
         };
-
         const icons = {
             user: createIcon('#3B82F6'),    // 藍色
-            parking: createIcon('#EF4444'), // 紅色
-            camera: createIcon('#F59E0B')   // 黃色
+            parking: createIcon('#10B981'), // 綠色
+            camera: createIcon('#F59E0B', 40)   // 黃色(大一點)
         };
 
-        // --- 3. 核心功能：計算距離 (公尺) ---
+        // --- 初始化 ---
+        window.onload = function() {
+            lucide.createIcons();
+            map = L.map('map', { zoomControl: false }).setView([currentLat, currentLng], 14);
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+            parkingLayer = L.layerGroup().addTo(map);
+            cameraLayer = L.layerGroup().addTo(map);
+
+            map.on('moveend', function() {
+                const center = map.getCenter();
+                currentLat = center.lat;
+                currentLng = center.lng;
+                updateDebugInfo(currentLat, currentLng);
+            });
+
+            document.getElementById('btn-start').addEventListener('click', startTracking);
+            document.getElementById('btn-stop').addEventListener('click', stopTracking);
+            
+            showToast("請點擊「開始導航模式」以取得真實資料", 'info');
+        };
+
+        function updateDebugInfo(lat, lng) {
+            document.getElementById('debug-info').innerText = `Lat: ${lat.toFixed(4)}\nLng: ${lng.toFixed(4)}`;
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast-message');
+            toast.innerText = message;
+            toast.className = "hidden absolute top-[120px] left-1/2 transform -translate-x-1/2 px-4 py-2 rounded shadow-lg z-50 text-sm transition-opacity duration-300 pointer-events-none text-center min-w-[200px] text-white";
+            
+            if (type === 'error') toast.classList.add('bg-red-600', 'block');
+            else if (type === 'warning') toast.classList.add('bg-yellow-600/90', 'block');
+            else toast.classList.add('bg-slate-800/90', 'block');
+            
+            setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('block'); }, 4000);
+        }
+
+        // --- 資料串接核心 ---
+        
+        // 整合更新 (停車場 + 測速照相)
+        window.refreshAllData = function() {
+            fetchParkingData(currentLat, currentLng);
+            fetchCameraData(currentLat, currentLng);
+        }
+
+        // 1. 抓取停車場
+        async function fetchParkingData(lat, lng) {
+            try {
+                // type=parking
+                const response = await fetch(`${GAS_API_URL}?type=parking&lat=${lat}&lng=${lng}`);
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                parkingLayer.clearLayers();
+                const parkings = data.ParkingAvailabilities || [];
+                
+                parkings.forEach(park => {
+                    if (park.ParkingPosition?.PositionLat && park.ParkingPosition?.PositionLon) {
+                        const avail = park.AvailableSpaces;
+                        const name = park.CarParkName?.Zh_tw || park.CarParkName;
+                        let colorClass = avail < 5 ? "text-red-600" : "text-green-600";
+                        
+                        // 換成紅色圖示如果車位少
+                        let icon = avail < 5 ? createIcon('#EF4444') : icons.parking;
+
+                        const popup = `
+                            <div class="p-1 min-w-[150px]">
+                                <h3 class="font-bold text-base">${name}</h3>
+                                <p class="mb-2">剩餘: <span class="${colorClass} font-bold text-lg">${avail}</span> / ${park.TotalSpaces}</p>
+                                <button onclick="navigateTo(${park.ParkingPosition.PositionLat}, ${park.ParkingPosition.PositionLon})" 
+                                    class="w-full bg-blue-600 text-white py-2 rounded text-sm">導航前往</button>
+                            </div>`;
+                        
+                        L.marker([park.ParkingPosition.PositionLat, park.ParkingPosition.PositionLon], {icon: icon})
+                         .bindPopup(popup).addTo(parkingLayer);
+                    }
+                });
+                
+                if(parkings.length > 0) showToast(`已更新 ${parkings.length} 筆停車場`);
+            } catch (e) {
+                console.error("Parking Error:", e);
+                // 失敗時不清除舊資料，只顯示錯誤
+            }
+        }
+
+        // 2. 抓取測速照相 (新功能)
+        async function fetchCameraData(lat, lng) {
+            const loading = document.getElementById('loading-indicator');
+            loading.classList.remove('hidden');
+            
+            try {
+                // type=camera
+                const response = await fetch(`${GAS_API_URL}?type=camera&lat=${lat}&lng=${lng}`);
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+
+                cameraLayer.clearLayers();
+                nearbyCamerasList = data.cameras || []; // 更新全域變數供即時比對
+
+                nearbyCamerasList.forEach(cam => {
+                    const popup = `
+                        <div class="p-1 min-w-[150px]">
+                            <h3 class="font-bold text-base text-red-600">⚠️ 測速照相</h3>
+                            <p class="text-sm font-bold">限速: ${cam.limit} km/h</p>
+                            <p class="text-xs text-gray-600 mb-2">${cam.address}</p>
+                            <p class="text-xs text-gray-500">方向: ${cam.direct || '無資料'}</p>
+                        </div>`;
+                    
+                    L.marker([cam.lat, cam.lng], {icon: icons.camera})
+                     .bindPopup(popup).addTo(cameraLayer);
+                });
+
+                if(nearbyCamerasList.length > 0) showToast(`已載入 ${nearbyCamerasList.length} 支測速照相`, 'warning');
+                else showToast("附近 3 公里內無固定測速照相");
+
+            } catch (e) {
+                console.error("Camera Error:", e);
+                showToast("測速資料下載失敗", 'error');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        // --- 距離計算與警示 ---
         function getDistance(lat1, lon1, lat2, lon2) {
             const R = 6371e3; 
             const φ1 = lat1 * Math.PI / 180;
             const φ2 = lat2 * Math.PI / 180;
             const Δφ = (lat2 - lat1) * Math.PI / 180;
             const Δλ = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        // --- 4. 程式入口：初始化地圖 ---
-        window.onload = function() {
-            lucide.createIcons();
-
-            // 建立地圖
-            map = L.map('map', { zoomControl: false }).setView([currentLat, currentLng], 15);
-
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
-
-            parkingLayer = L.layerGroup().addTo(map);
-
-            // 監聽地圖移動結束事件，更新當前中心點
-            map.on('moveend', function() {
-                const center = map.getCenter();
-                currentLat = center.lat;
-                currentLng = center.lng;
+        function checkSpeedCameras(userLat, userLng) {
+            const alertBanner = document.getElementById('alert-banner');
+            const alertText = document.getElementById('alert-text');
+            
+            // 使用後端回傳的 nearbyCamerasList 進行比對
+            const nearby = nearbyCamerasList.find(cam => {
+                const dist = getDistance(userLat, userLng, cam.lat, cam.lng);
+                return dist < 350; // 350公尺內警示
             });
 
-            // 初始載入
-            fetchParkingData(currentLat, currentLng);
-
-            // 繪製測速照相
-            MOCK_CAMERAS.forEach(cam => {
-                L.marker([cam.lat, cam.lng], {icon: icons.camera})
-                 .bindPopup(`測速照相: 限速 ${cam.limit}`)
-                 .addTo(map);
-            });
-
-            document.getElementById('btn-start').addEventListener('click', startTracking);
-            document.getElementById('btn-stop').addEventListener('click', stopTracking);
-        };
-
-        // 顯示提示訊息
-        function showToast(message, type = 'info') {
-            const toast = document.getElementById('toast-message');
-            toast.innerText = message;
-            toast.classList.remove('hidden', 'bg-red-600', 'bg-slate-800/90', 'bg-blue-600/90', 'bg-yellow-600/90');
-            
-            if (type === 'error') toast.classList.add('bg-red-600');
-            else if (type === 'demo') toast.classList.add('bg-blue-600/90');
-            else if (type === 'warning') toast.classList.add('bg-yellow-600/90');
-            else toast.classList.add('bg-slate-800/90');
-            
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 4000);
-        }
-
-        // --- 5. 抓取停車場資料 ---
-        async function fetchParkingData(lat, lng) {
-            const loading = document.getElementById('loading-indicator');
-            loading.classList.remove('hidden');
-
-            try {
-                // 設定 Timeout 10秒
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); 
-
-                const response = await fetch(`${GAS_API_URL}?lat=${lat}&lng=${lng}`, {
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-
-                if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
-
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    throw new Error("伺服器回應格式錯誤");
-                }
-
-                const data = await response.json();
-                
-                // ** 新增：檢查 API 是否回傳錯誤訊息 **
-                if (data.error) {
-                    throw new Error("GAS 錯誤: " + data.error);
-                }
-
-                const parkings = data.ParkingAvailabilities || [];
-                renderParkings(parkings);
-
-                if (parkings.length === 0) {
-                    showToast(`此區域 1 公里內無 TDX 即時車位資料`, 'warning');
-                } else {
-                    showToast(`已更新 ${parkings.length} 筆即時車位`);
-                }
-
-            } catch (error) {
-                console.warn("API Error:", error);
-                renderParkings(FALLBACK_PARKINGS);
-                showToast("連線異常或無資料，顯示模擬數據", 'demo');
-            } finally {
-                loading.classList.add('hidden');
+            if (nearby) {
+                alertBanner.classList.remove('hidden');
+                alertText.innerText = `⚠️ 前方 ${nearby.limit} 公里測速照相！`;
+            } else {
+                alertBanner.classList.add('hidden');
             }
         }
 
-        // 繪製停車場
-        function renderParkings(parkings) {
-            parkingLayer.clearLayers();
-            parkings.forEach(park => {
-                if (park.ParkingPosition && park.ParkingPosition.PositionLat && park.ParkingPosition.PositionLon) {
-                    const pLat = park.ParkingPosition.PositionLat;
-                    const pLng = park.ParkingPosition.PositionLon;
-                    const avail = park.AvailableSpaces;
-                    const total = park.TotalSpaces;
-                    const name = (park.CarParkName && park.CarParkName.Zh_tw) ? park.CarParkName.Zh_tw : (park.CarParkName || "未命名");
+        // --- 定位與導航 ---
+        window.navigateTo = (lat, lng) => window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
 
-                    let colorClass = "text-green-600";
-                    if (avail === 0) colorClass = "text-gray-500";
-                    else if (avail < 10) colorClass = "text-red-600";
-                    
-                    const popupContent = `
-                        <div class="p-1 min-w-[150px]">
-                            <h3 class="font-bold text-base mb-1">${name}</h3>
-                            <div class="text-sm text-gray-600 mb-2">
-                                <p>剩餘: <span class="${colorClass} font-bold text-lg">${avail}</span> / ${total}</p>
-                                <p class="text-xs text-gray-400 mt-1">更新: ${new Date().toLocaleTimeString()}</p>
-                            </div>
-                            <button onclick="navigateTo(${pLat}, ${pLng})" 
-                                class="w-full bg-blue-600 text-white py-2 rounded flex items-center justify-center gap-2 hover:bg-blue-700">
-                                導航前往
-                            </button>
-                        </div>
-                    `;
-
-                    L.marker([pLat, pLng], {icon: icons.parking})
-                     .bindPopup(popupContent)
-                     .addTo(parkingLayer);
-                }
-            });
-        }
-
-        // --- 6. 導航功能 ---
-        window.navigateTo = function(lat, lng) {
-            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-            window.open(url, '_blank');
-        };
-
-        // --- 7. 定位追蹤 ---
         function startTracking() {
-            if (!navigator.geolocation) {
-                alert("瀏覽器不支援定位");
-                return;
-            }
+            if (!navigator.geolocation) return alert("不支援定位");
             document.getElementById('btn-start').classList.add('hidden');
             document.getElementById('status-panel').classList.remove('hidden');
             isTracking = true;
-
-            watchId = navigator.geolocation.watchPosition(
-                updatePosition,
-                handleLocationError,
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            watchId = navigator.geolocation.watchPosition(updatePosition, 
+                (err) => document.getElementById('gps-status').innerText = "GPS 訊號遺失", 
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         }
 
         function stopTracking() {
-            if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-            }
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
             isTracking = false;
             document.getElementById('btn-start').classList.remove('hidden');
             document.getElementById('status-panel').classList.add('hidden');
             document.getElementById('gps-status').innerText = "已停止追蹤";
-            document.getElementById('gps-status').className = "text-xs bg-gray-500 px-2 py-1 rounded text-white";
         }
 
-        function updatePosition(position) {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const accuracy = position.coords.accuracy;
-            
-            // 更新全域變數
-            currentLat = lat;
-            currentLng = lng;
+        function updatePosition(pos) {
+            const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+            currentLat = lat; currentLng = lng;
+            updateDebugInfo(lat, lng);
 
-            const statusDiv = document.getElementById('gps-status');
-            statusDiv.innerText = `GPS 良好 (±${Math.round(accuracy)}m)`;
-            statusDiv.className = "text-xs bg-green-600 px-2 py-1 rounded text-white";
+            document.getElementById('gps-status').innerText = `GPS 良好 (±${Math.round(accuracy)}m)`;
 
             if (!userMarker) {
                 userMarker = L.marker([lat, lng], {icon: icons.user}).addTo(map);
                 accuracyCircle = L.circle([lat, lng], {radius: 300, color: 'blue', opacity: 0.1}).addTo(map);
-                map.setView([lat, lng], 17);
-                
+                map.setView([lat, lng], 16);
                 if (!hasFetchedInitialLocation) {
-                    fetchParkingData(lat, lng);
+                    refreshAllData(); // 第一次定位成功，抓資料
                     hasFetchedInitialLocation = true;
                 }
             } else {
                 userMarker.setLatLng([lat, lng]);
                 accuracyCircle.setLatLng([lat, lng]);
             }
-
+            
+            // 如果移動超過 1 公里，重新抓取背景資料 (避免太頻繁呼叫 API)
+            // (這裡簡化處理：先只做警示檢測)
             checkSpeedCameras(lat, lng);
         }
-
-        function handleLocationError(err) {
-            console.error(err);
-            const statusDiv = document.getElementById('gps-status');
-            statusDiv.innerText = "GPS 訊號遺失";
-            statusDiv.className = "text-xs bg-red-600 px-2 py-1 rounded text-white";
-        }
-
-        // --- 8. 測速照相 ---
-        function checkSpeedCameras(userLat, userLng) {
-            const alertBanner = document.getElementById('alert-banner');
-            const alertText = document.getElementById('alert-text');
-            
-            const nearbyCamera = MOCK_CAMERAS.find(cam => {
-                const dist = getDistance(userLat, userLng, cam.lat, cam.lng);
-                return dist < 300;
-            });
-
-            if (nearbyCamera) {
-                alertBanner.classList.remove('hidden');
-                alertText.innerText = `⚠️ 前方 ${nearbyCamera.limit} 公里測速照相！`;
-            } else {
-                alertBanner.classList.add('hidden');
-            }
-        }
-
-        // --- 9. 開發測試 ---
-        window.simulateMove = function() {
-            if(!isTracking) startTracking();
-            const mockPosition = {
-                coords: { latitude: 22.625, longitude: 120.298, accuracy: 10 }
-            };
-            updatePosition(mockPosition);
-            map.setView([22.625, 120.298], 18);
-        };
-        
-        window.refreshCurrentLocation = function() {
-            fetchParkingData(currentLat, currentLng);
-        };
-
     </script>
 </body>
 </html>
