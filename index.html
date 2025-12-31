@@ -51,7 +51,7 @@
     </div>
     
     <!-- 錯誤/狀態提示 (Toast) -->
-    <div id="toast-message" class="hidden absolute top-[120px] left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white px-4 py-2 rounded shadow-lg z-50 text-sm transition-opacity duration-300">
+    <div id="toast-message" class="hidden absolute top-[120px] left-1/2 transform -translate-x-1/2 bg-slate-800/90 text-white px-4 py-2 rounded shadow-lg z-50 text-sm transition-opacity duration-300 pointer-events-none">
         狀態訊息
     </div>
 
@@ -59,8 +59,9 @@
     <div id="map" class="flex-1"></div>
 
     <!-- 載入中提示 -->
-    <div id="loading-indicator" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/70 text-white px-4 py-2 rounded-lg z-50">
-        載入即時車位中...
+    <div id="loading-indicator" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/70 text-white px-4 py-2 rounded-lg z-50 flex items-center gap-2">
+        <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+        <span>載入即時車位中...</span>
     </div>
 
     <!-- 底部浮動操作區 -->
@@ -104,6 +105,7 @@
         let hasFetchedInitialLocation = false;
 
         // ** 您的 GAS API 網址 **
+        // 請確保此 GAS 已部署為「網頁應用程式」，且權限設為「所有人 (Anyone)」
         const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyHzKgk3xYAoQMLOKmw859IixhNGFTw0g9jlnGmpGifimQbcRJC5kWt0uXnBZFGXG4T7w/exec";
 
         // 備用模擬資料 (當 API 失敗時使用)
@@ -111,6 +113,8 @@
             { id: 1, CarParkName: "中央公園地下停車場(模擬)", ParkingPosition: { PositionLat: 22.624, PositionLon: 120.300 }, TotalSpaces: 200, AvailableSpaces: 45 },
             { id: 2, CarParkName: "市議會露天停車場(模擬)", ParkingPosition: { PositionLat: 22.626, PositionLon: 120.295 }, TotalSpaces: 50, AvailableSpaces: 5 },
             { id: 3, CarParkName: "百貨公司附設停車場(模擬)", ParkingPosition: { PositionLat: 22.622, PositionLon: 120.302 }, TotalSpaces: 500, AvailableSpaces: 120 },
+            { id: 4, CarParkName: "民生路平面停車場(模擬)", ParkingPosition: { PositionLat: 22.628, PositionLon: 120.305 }, TotalSpaces: 80, AvailableSpaces: 0 },
+            { id: 5, CarParkName: "新崛江商圈停車場(模擬)", ParkingPosition: { PositionLat: 22.621, PositionLon: 120.304 }, TotalSpaces: 150, AvailableSpaces: 12 }
         ];
 
         // 模擬資料 (測速照相仍維持靜態模擬，因使用者尚未提供 API)
@@ -185,20 +189,22 @@
         };
 
         // 顯示提示訊息 (Toast)
-        function showToast(message, isError = false) {
+        function showToast(message, type = 'info') {
             const toast = document.getElementById('toast-message');
             toast.innerText = message;
-            toast.classList.remove('hidden', 'bg-red-600', 'bg-slate-800/90');
+            toast.classList.remove('hidden', 'bg-red-600', 'bg-slate-800/90', 'bg-blue-600/90');
             
-            if (isError) {
+            if (type === 'error') {
                 toast.classList.add('bg-red-600');
+            } else if (type === 'demo') {
+                toast.classList.add('bg-blue-600/90'); // 模擬模式用藍色
             } else {
                 toast.classList.add('bg-slate-800/90');
             }
             
             setTimeout(() => {
                 toast.classList.add('hidden');
-            }, 3000);
+            }, 4000);
         }
 
         // --- 5. 新增：抓取真實停車場資料 (呼叫 GAS) + 錯誤處理 ---
@@ -209,9 +215,9 @@
             try {
                 console.log("嘗試連接 GAS API:", GAS_API_URL);
                 
-                // 設定 Timeout，避免卡住太久
+                // 設定 Timeout，GAS 有時需要較長時間喚醒，延長至 10 秒
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超時
+                const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
                 // 呼叫 GAS API
                 const response = await fetch(`${GAS_API_URL}?lat=${lat}&lng=${lng}`, {
@@ -220,8 +226,18 @@
                 
                 clearTimeout(timeoutId);
 
+                // 檢查 HTTP 狀態
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`HTTP 錯誤: ${response.status}`);
+                }
+
+                // 檢查 Content-Type 確保是 JSON (避免 GAS 回傳錯誤 HTML 導致解析失敗)
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    // 嘗試讀取文字看看是什麼錯誤
+                    const text = await response.text();
+                    console.error("收到非 JSON 回應:", text.substring(0, 100)); 
+                    throw new Error("伺服器回應格式錯誤 (非 JSON)");
                 }
 
                 const data = await response.json();
@@ -229,14 +245,15 @@
                 // 檢查是否回傳了正確的資料結構
                 const parkings = data.ParkingAvailabilities || [];
                 renderParkings(parkings);
-                showToast("即時車位資料已更新");
+                showToast(`已更新 ${parkings.length} 筆即時車位`);
 
             } catch (error) {
                 console.warn("無法連接 GAS API，切換至模擬數據:", error);
                 
                 // **Fallback 機制：使用模擬資料**
                 renderParkings(FALLBACK_PARKINGS);
-                showToast("無法連接伺服器，顯示模擬資料", true);
+                // 顯示較為友善的提示
+                showToast("連線不穩，已切換至模擬資料模式", 'demo');
 
             } finally {
                 loading.classList.add('hidden');
@@ -261,7 +278,10 @@
                     const total = park.TotalSpaces;
                     const name = (park.CarParkName && park.CarParkName.Zh_tw) ? park.CarParkName.Zh_tw : (park.CarParkName || "未命名停車場");
 
-                    const colorClass = avail < 5 ? "text-red-600" : "text-green-600";
+                    // 判斷車位狀況顏色
+                    let colorClass = "text-green-600";
+                    if (avail === 0) colorClass = "text-gray-500";
+                    else if (avail < 10) colorClass = "text-red-600";
                     
                     const popupContent = `
                         <div class="p-1 min-w-[150px]">
